@@ -455,10 +455,13 @@ function note(el,msg,kind){el.className="notice"+(kind?" "+kind:"");el.textConte
 function parseCode(raw){const m=String(raw||"").toUpperCase().match(CODE_RE);return m?m[0]:String(raw||"").trim().toUpperCase()}
 function store(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}
 function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
-async function api(fn,...args){let r;
-  try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify({fn,pin:PIN,args})})}catch(e){throw new Error("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบอินเทอร์เน็ต")}
-  let j;try{j=await r.json()}catch(e){throw new Error("เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ")}
-  if(!j.ok)throw new Error(j.error||"เกิดข้อผิดพลาด");return j.data}
+async function api(fn,...args){return apiT(120000,fn,...args)}
+// เรียกเซิร์ฟเวอร์แบบมีเวลารอสูงสุด ถ้าไม่ตอบ/เน็ตหลุด จะ throw error ที่มี retry=true
+async function apiT(ms,fn,...args){let r;const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),ms);
+  const net=m=>Object.assign(new Error(m),{retry:true});
+  try{try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify({fn,pin:PIN,args}),signal:ac.signal})}catch(e){throw net(ac.signal.aborted?"เซิร์ฟเวอร์ไม่ตอบกลับภายในเวลาที่กำหนด":"เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบอินเทอร์เน็ต")}
+    let j;try{j=await r.json()}catch(e){throw net(ac.signal.aborted?"เซิร์ฟเวอร์ไม่ตอบกลับภายในเวลาที่กำหนด":"เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ")}
+    if(!j.ok)throw new Error(j.error||"เกิดข้อผิดพลาด");return j.data}finally{clearTimeout(tm)}}
 function qrPayload(code){return APP_URL+"?c="+code}
 function qrSvg(text){const q=qrcode(0,"M");q.addData(text);q.make();const n=q.getModuleCount(),m=2,s=n+m*2;let p="";
   for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))p+=`M${c+m} ${r+m}h1v1h-1z`;
@@ -768,7 +771,10 @@ $("l-clear-q").addEventListener("click",()=>{if(confirm("ล้างบิล�
 $("l-make-all").addEventListener("click",async()=>{if(!labelQueue.length)return;const msg=$("label-msg"),btn=$("l-make-all");btn.disabled=true;$("l-submit").disabled=true;
   const made=[],total=labelQueue.length;let done=0;await freshItems();
   try{while(labelQueue.length){const q=labelQueue[0];note(msg,`กำลังสร้างป้าย บิลที่ ${done+1}/${total}...`);
-      const r=await api("apiCreateLabels",q.base,q.n,NAME);made.push(...r.items);labelQueue.shift();done++;renderQueue()}
+      q.rid=q.rid||Date.now().toString(36)+Math.random().toString(36).slice(2,10); // ส่งซ้ำด้วยรหัสเดิม เซิร์ฟเวอร์จะไม่สร้างป้ายซ้ำ
+      let r;for(let k=1;;k++){try{r=await apiT(45000,"apiCreateLabels",q.base,q.n,NAME,q.rid);break}
+        catch(err){if(!err.retry||k>=4)throw err;note(msg,`บิลที่ ${done+1}/${total}: ${err.message} กำลังลองใหม่ (ครั้งที่ ${k+1})...`)}}
+      made.push(...r.items);labelQueue.shift();done++;renderQueue()}
     note(msg,`สร้างป้ายครบ ${done} บิล รวม ${made.length} ป้ายแล้ว กดพิมพ์ป้ายได้ทั้งหมดในครั้งเดียว`,"ok")}
   catch(err){note(msg,`สร้างได้ ${done} บิล บิลที่เหลือยังอยู่ในรายการ กดสร้างอีกครั้งได้ · ${err.message}`,"err")}
   finally{btn.disabled=false;$("l-submit").disabled=false;renderQueue();
