@@ -64,7 +64,7 @@ textarea{min-height:56px;resize:vertical}
 .card-head .code{font-size:20px}
 dl.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 16px;margin:14px 0 0}
 dl.kv div{min-width:0}dl.kv dt{font-size:12px;color:var(--muted)}dl.kv dd{margin:0;font-weight:500;overflow-wrap:anywhere}
-.track{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:16px}
+.track{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:16px}
 .step{padding:8px 8px 6px;border-top:4px dashed var(--line);font-size:12px;color:var(--muted);min-width:0;border-radius:0 0 6px 6px}
 .step b{display:block;color:var(--muted);font-size:13px;font-weight:500}
 .step.done{border-top:4px solid var(--s4);background:var(--t4);color:var(--ink)}.step.done b{color:var(--s4);font-weight:700}
@@ -171,7 +171,6 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--surface-2)}
         <div style="font-size:13px;color:var(--muted);margin-bottom:6px">1. เลือกงาน</div>
         <div class="modes" id="modes">
           <button data-mode="view" aria-pressed="true">ดูข้อมูล</button>
-          <button data-mode="1" aria-pressed="false" class="staff">รับเข้าคลัง</button>
           <button data-mode="2" aria-pressed="false" class="staff">ขึ้นรถ</button>
           <button data-mode="3" aria-pressed="false" class="staff">ถึงปลายทาง</button>
           <button data-mode="4" aria-pressed="false" class="staff">ส่งสำเร็จ</button>
@@ -206,11 +205,10 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--surface-2)}
 
   <!-- LABELS -->
   <section id="view-labels" class="stack" hidden>
-    <div><h2>สร้างป้าย QR</h2><p class="sub">ป้าย 1 ใบ = สินค้า 1 บิล สร้างพร้อมข้อมูลบิล หรือสร้างป้ายเปล่าแล้วกรอกตอนสแกนรับเข้า</p></div>
+    <div><h2>สร้างป้าย QR</h2><p class="sub">ป้าย 1 ใบ = สินค้า 1 บิล · สร้างป้าย QR แล้ว = รับเข้าคลังทันที (วันที่รับเข้า = วันที่สร้างป้าย)</p></div>
     <form id="label-form" class="panel stack" autocomplete="off">
-      <div class="modes" id="label-kind">
+      <div class="modes" id="label-kind" hidden>
         <button type="button" data-kind="full" aria-pressed="true">ป้ายพร้อมข้อมูลบิล</button>
-        <button type="button" data-kind="blank" aria-pressed="false">ป้ายเปล่า</button>
       </div>
       <div class="photo-box" id="l-photo-box">
         <div class="row">
@@ -239,7 +237,6 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--surface-2)}
         <datalist id="dl-customer"></datalist><datalist id="dl-store"></datalist><datalist id="dl-branch"></datalist><datalist id="dl-ptype"></datalist>
         <label class="f">จำนวนสินค้าในบิล<input id="l-qty" type="number" min="0" step="any" value="1"></label>
         <label class="f">หน่วย<select id="l-unit"><option>กล่อง</option><option>พาเลท</option><option>ลัง</option><option>ชิ้น</option><option>แพ็ค</option></select></label>
-        <label class="f">สถานะเริ่มต้น<select id="l-recv"><option value="0">รอรับเข้า</option><option value="1">รับเข้าคลังแล้ววันนี้</option></select></label>
       </div>
       <div class="row">
         <label class="f" style="width:150px">จำนวนป้าย<input id="l-count" type="number" min="1" max="200" value="1" required></label>
@@ -432,7 +429,7 @@ function setMode(m){if(isCust())m="view";mode=String(m);for(const b of $("modes"
   $("last-result").hidden=true;$("scan-msg").hidden=true;savePrefs()}
 $("modes").addEventListener("click",e=>{const b=e.target.closest("button");if(b)setMode(b.dataset.mode)});
 $("batch-fields").addEventListener("input",savePrefs);
-setMode(BATCH_FIELDS[prefs().mode]?prefs().mode:"view");
+setMode(BATCH_FIELDS[prefs().mode]&&prefs().mode!=="1"?prefs().mode:"view"); // ไม่มีโหมดรับเข้าคลังแล้ว (สร้างป้าย = รับเข้า)
 
 /* ---------- live camera ---------- */
 let stream=null,timer=null,lastCode="",lastAt=0,detector=null,busy=false,actx=null;
@@ -503,7 +500,7 @@ function renderItem(code,it,log){const box=$("item-view");box.hidden=false;
     <p class="sub" style="margin:10px 0">ป้ายเปล่า กรอกข้อมูลเพื่อรับเข้าคลัง</p>${editForm({},true)}</div>`;bindEdit(code,true,null);return}
   const i=si(it.status);
   const dates=[it.createdAt,it.receivedDate,it.shipDate,it.arrivedDate,it.deliveredDate];
-  const track=ST.map((s,k)=>`<div class="step ${k<i?"done":k===i?"now done":""}"><b>${s}</b>${k<=i?"&#10003; "+fmtD(dates[k]):"ยังไม่อัปเดต"}</div>`).join("");
+  const track=ST.map((s,k)=>k?`<div class="step ${k<i?"done":k===i?"now done":""}"><b>${s}</b>${k<=i?"&#10003; "+fmtD(dates[k]):"ยังไม่อัปเดต"}</div>`:"").join("");
   box.innerHTML=`<div class="panel">
     ${isCust()?`<button type="button" class="btn" style="margin-bottom:12px" onclick="showTab('list')">&larr; กลับไปรายการทั้งหมด</button>`:""}<div class="card-head"><span class="code">${esc(code)}</span><div class="row" style="align-items:center">${pill(it.status)}<button type="button" class="btn staff" id="edit-open">แก้ไขข้อมูล</button></div></div>
     <dl class="kv">
@@ -597,7 +594,7 @@ function editForm(it,isNew){if(typeof fillLabelLists==="function")fillLabelLists
     <label class="f">วันนัดส่ง<input id="e-plan" type="date" value="${esc(it.planDate)}"></label>
     <label class="f wide">ประเภทสินค้า<input id="e-desc" list="dl-ptype" value="${esc(it.desc)}"></label>
     ${isNew?`<label class="f">วันที่รับเข้า<input id="e-recvdate" type="date" value="${today()}"></label>`:`
-    <label class="f">สถานะ<select id="e-status">${ST.map(s=>`<option ${s===it.status?"selected":""}>${s}</option>`).join("")}</select></label>
+    <label class="f">สถานะ<select id="e-status">${ST.slice(1).map(s=>`<option ${s===it.status?"selected":""}>${s}</option>`).join("")}</select></label>
     <label class="f">วันที่รับเข้า<input id="e-recvdate" type="date" value="${esc(it.receivedDate)}"></label>
     <label class="f">เลขเที่ยว<input id="e-trip" value="${esc(it.trip)}"></label>
     <label class="f">วันที่ออกรถ<input id="e-ship" type="date" value="${esc(it.shipDate)}"></label>
@@ -645,7 +642,7 @@ $("l-bill").addEventListener("input",e=>{const d=riDigits(e.target.value);if(d!=
 function labelCount(){return Math.max(1,Math.min(200,parseInt($("l-count").value)||1))}
 function labelBase(){const base=labelKind==="full"?{customer:$("l-customer").value.trim(),billNo:riBill($("l-bill").value),store:$("l-store").value.trim(),branch:$("l-branch").value.trim(),planDate:$("l-plan").value,
     desc:$("l-desc").value.trim(),qty:$("l-qty").value,unit:$("l-unit").value}:{};
-  if(labelKind==="full"&&$("l-recv").value==="1"){base.status=ST[1];base.receivedDate=today()}
+  base.status=ST[1];base.receivedDate=today(); // สร้างป้าย = รับเข้าคลังทันที
   if(billPhoto&&$("l-photo-attach").checked)base.photo=billPhoto;
   return base}
 $("label-form").addEventListener("submit",async e=>{e.preventDefault();const msg=$("label-msg");const n=labelCount();const base=labelBase();
@@ -673,7 +670,7 @@ $("l-queue").addEventListener("click",e=>{const ed=e.target.closest("button[data
     const q=labelQueue.splice(+ed.dataset.e,1)[0],b=q.base;if(labelKind!=="full")$("label-kind").children[0].click();
     $("l-customer").value=b.customer||"";$("l-bill").value=riDigits(b.billNo);$("l-store").value=b.store||"";$("l-branch").value=b.branch||"";
     $("l-plan").value=b.planDate||"";$("l-desc").value=b.desc||"";$("l-qty").value=b.qty||"1";$("l-unit").value=b.unit||"กล่อง";$("l-count").value=q.n;
-    $("l-recv").value=b.status===ST[1]?"1":"0";billPhoto=b.photo||null;renderQueue();
+    billPhoto=b.photo||null;renderQueue();
     note($("label-msg"),`ดึงบิล ${b.billNo||""} กลับมาแก้ในฟอร์มแล้ว แก้เสร็จกด "+ เพิ่มบิลนี้ลงรายการ" อีกครั้ง`,"ok");
     $("label-form").scrollIntoView({behavior:"smooth",block:"start"});return}
   const b=e.target.closest("button[data-i]");if(!b)return;labelQueue.splice(+b.dataset.i,1);renderQueue()});
@@ -683,7 +680,8 @@ $("l-make-all").addEventListener("click",async()=>{if(!labelQueue.length)return;
   try{while(labelQueue.length){const q=labelQueue[0];note(msg,`กำลังสร้างป้าย บิลที่ ${done+1}/${total}...`);
       q.rid=q.rid||Date.now().toString(36)+Math.random().toString(36).slice(2,10); // ส่งซ้ำด้วยรหัสเดิม เซิร์ฟเวอร์จะไม่สร้างป้ายซ้ำ
       let r;for(let k=1;;k++){try{r=await apiT(45000,"apiCreateLabels",q.base,q.n,NAME,q.rid);break}
-        catch(err){if(!err.retry||k>=4)throw err;note(msg,`บิลที่ ${done+1}/${total}: ${err.message} กำลังลองใหม่ (ครั้งที่ ${k+1})...`)}}
+        catch(err){if(!err.retry||k>=6)throw err;const w=Math.min(20,2*2**(k-1)); // เน็ต/เซิร์ฟเวอร์สะดุด: รอ 2,4,8,16,20 วินาทีแล้วลองใหม่
+          note(msg,`บิลที่ ${done+1}/${total}: ${err.message} จะลองใหม่ใน ${w} วินาที (ครั้งที่ ${k+1}/6)...`);await new Promise(ok=>setTimeout(ok,w*1000))}}
       made.push(...r.items);labelQueue.shift();done++;renderQueue()}
     note(msg,`สร้างป้ายครบ ${done} บิล รวม ${made.length} ป้ายแล้ว กดพิมพ์ป้ายได้ทั้งหมดในครั้งเดียว`,"ok")}
   catch(err){note(msg,`สร้างได้ ${done} บิล บิลที่เหลือยังอยู่ในรายการ กดสร้างอีกครั้งได้ · ${err.message}`,"err")}
@@ -765,7 +763,7 @@ $("l-xls-input").addEventListener("change",async e=>{const f=e.target.files&&e.t
     const map=xlsMap(Object.keys(rows[0]));
     if(!map.billNo||!map.store)throw new Error("ไม่พบคอลัมน์ เลขที่บิล หรือ ร้านค้า ในแถวหัวตาราง");
     if(labelKind!=="full")$("label-kind").children[0].click();
-    const recv=$("l-recv").value==="1";let added=0,skip=0,dup=0,done=0;const odd=[];
+    const recv=true;let added=0,skip=0,dup=0,done=0;const odd=[];
     for(const r of rows){const g=k=>map[k]?String(r[map[k]]).trim():"";const base={customer:g("customer")||$("l-customer").value.trim(),billNo:riBill(g("billNo")),store:g("store"),branch:g("branch"),
         planDate:map.planDate?xlsDate(r[map.planDate]):"",desc:g("desc"),qty:g("qty")||"1",unit:g("unit")||(/หีบ/.test(map.qty||"")?"ลัง":$("l-unit").value)};
       if(!base.billNo||!base.store){if(Object.values(r).some(v=>String(v).trim()))skip++;continue}
@@ -800,7 +798,7 @@ function filtered(){const q=$("q").value.trim().toLowerCase(),qd=$("q-date").val
   return items.filter(it=>(filterStatus===-5?isCutoff(it):filterStatus===-4?isMissed(it):filterStatus===-3?isDueSoon(it):filterStatus===-2?isStuck(it):filterStatus===-1?(si(it.status)<4||!!q||!!qd):si(it.status)===filterStatus)&&(!qd||it.shipDate===qd)&&(!q||[it.code,it.customer,it.billNo,it.store,it.trip,it.planTrip,it.branch,it.desc].some(v=>String(v||"").toLowerCase().includes(q))))}
 function renderList(){const c=[0,0,0,0,0];for(const it of items)c[si(it.status)]++;
   const nStuck=items.filter(isStuck).length;
-  $("counts").innerHTML=`<button data-s="-1" aria-pressed="${filterStatus===-1}"><small>ทั้งหมด (ยังไม่ส่งสำเร็จ)</small><strong>${items.length-c[4]}</strong></button>`+ST.map((s,k)=>`<button data-s="${k}" aria-pressed="${filterStatus===k}"><small>${s}</small><strong>${c[k]}</strong></button>`).join("")+
+  $("counts").innerHTML=`<button data-s="-1" aria-pressed="${filterStatus===-1}"><small>ทั้งหมด (ยังไม่ส่งสำเร็จ)</small><strong>${items.length-c[4]}</strong></button>`+ST.map((s,k)=>k?`<button data-s="${k}" aria-pressed="${filterStatus===k}"><small>${s}</small><strong>${c[k]}</strong></button>`:"").join("")+
     `<button class="staff" data-s="-2" aria-pressed="${filterStatus===-2}" style="color:var(--danger)"><small>ค้างโกดังเกิน ${STUCK_DAYS} วัน</small><strong>${nStuck}</strong></button>`+
     `<button class="staff" data-s="-3" aria-pressed="${filterStatus===-3}" style="color:var(--s2)"><small>ใกล้วันนัดส่ง</small><strong>${items.filter(isDueSoon).length}</strong></button>`+
     `<button class="staff" data-s="-4" aria-pressed="${filterStatus===-4}" style="color:var(--danger)"><small>ตกเที่ยวรถ</small><strong>${items.filter(isMissed).length}</strong></button>`+
