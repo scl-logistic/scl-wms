@@ -156,6 +156,7 @@ body.sla #view-sla.trk:not([hidden]),body.sla .stack>.trk:not([hidden]){display:
   .sla-t td.act{justify-content:stretch}.sla-t td.act::before{display:none}.sla-t td.act .btn{flex:1}
   nav{flex-wrap:wrap}nav button{flex:1 1 30%}}
 .rep-box{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--tdanger);font-size:14px}.rep-box b{color:var(--danger)}
+.dn-box{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--t2);font-size:14px}.dn-box b{color:var(--s2)}
 .stack>*{min-width:0}
 [hidden]{display:none!important}
 #pops{position:fixed;right:16px;bottom:16px;z-index:50;display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100vw - 32px))}
@@ -423,6 +424,19 @@ body.sla #view-sla.trk:not([hidden]),body.sla .stack>.trk:not([hidden]){display:
     <div class="row"><button class="btn primary" type="submit" id="rep-save">บันทึกรายงาน</button></div>
   </form>
 </dialog>
+<dialog id="dn-dlg" class="rep-dlg">
+  <form id="dn-form" class="stack" method="dialog" novalidate>
+    <div class="card-head" style="margin:0"><h2>หมายเหตุจากปลายทาง</h2><button type="button" class="btn" id="dn-x" aria-label="ปิด">ปิด</button></div>
+    <p class="sub" id="dn-info" style="margin:0"></p>
+    <p class="sub" style="margin:0">ใช้เมื่อสินค้าขึ้นรถหรือถึงปลายทางแล้ว แต่ยังส่งให้ร้านไม่ได้ เช่น ร้านปิด ร้านเลื่อนรับ รอรถรอบถัดไป</p>
+    <div class="grid">
+      <label class="f wide">หมายเหตุ (ต้องกรอก)<textarea id="dn-note" maxlength="500" placeholder="เช่น ร้านปิดวันนี้ นัดส่งใหม่พรุ่งนี้เช้า"></textarea></label>
+      <label class="f wide">ผู้บันทึก (ต้องกรอก)<input id="dn-by" autocomplete="off" placeholder="ชื่อ-นามสกุล และสาขา"></label>
+    </div>
+    <div id="dn-msg" hidden></div>
+    <div class="row"><button class="btn primary" type="submit" id="dn-save">บันทึกหมายเหตุ</button></div>
+  </form>
+</dialog>
 <div id="toast" class="toast" hidden></div>
 <canvas id="cv" hidden></canvas>
 
@@ -598,7 +612,8 @@ function renderItem(code,it,log){const box=$("item-view");box.hidden=false;
       ${it.note?`<div style="grid-column:1/-1"><dt>หมายเหตุ</dt><dd>${esc(it.note)}</dd></div>`:""}
     </dl>
     <div class="staff">${it.issueType?`<div class="rep-box"><b>รายงานปัญหา: ${esc(it.issueType)}</b> · ${esc(it.issueCause)}${it.issueNote?` · ${esc(it.issueNote)}`:""}<br><small>โดย ${esc(it.issueBy)} · ${esc(it.issueAt)}</small></div>`:""}
-      ${probOf(it)||it.issueType||(i>=1&&i<4)?`<div class="row" style="margin-top:10px"><button type="button" class="btn" id="item-rep">${it.issueType?"อัปเดตรายงานปัญหา":"รายงานปัญหา (ไม่ได้ขึ้นรถ / ส่งล่าช้า)"}</button></div>`:""}</div>
+      ${it.destNote?`<div class="dn-box"><b>หมายเหตุจากปลายทาง</b> · ${esc(it.destNote)}<br><small>โดย ${esc(it.destNoteBy)} · ${esc(it.destNoteAt)}</small></div>`:""}
+      ${probOf(it)||it.issueType||(i>=1&&i<4)?`<div class="row" style="margin-top:10px"><button type="button" class="btn" id="item-rep">${it.issueType?"อัปเดตรายงานปัญหา":"รายงานปัญหา (ไม่ได้ขึ้นรถ / ส่งล่าช้า)"}</button></div>`:""}${i>=2&&i<4?`<div class="row" style="margin-top:8px"><button type="button" class="btn" id="item-dn">${it.destNote?"แก้หมายเหตุปลายทาง":"ใส่หมายเหตุปลายทาง (ยังไม่ได้ส่ง)"}</button></div>`:""}</div>
     <div class="track">${track}</div>
     ${it.status===ST_FAIL?`<div class="rep-box"><b>ส่งไม่สำเร็จ</b> · ${esc(it.failReason||"-")}</div>`:""}
     ${i<4?`<div class="staff">${nextForm(i+1,it)}${i>=2&&it.status!==ST_FAIL?failForm():""}</div>`:`<div class="notice ok" style="margin-top:16px">ส่งสินค้าสำเร็จแล้ว ${fmtD(it.deliveredDate)}</div>`}
@@ -610,6 +625,7 @@ function renderItem(code,it,log){const box=$("item-view");box.hidden=false;
   </div>`;
   if(i<4)bindNext(code,i+1);if($("fail-form"))bindFail(code);bindEdit(code,false,it);bindPhoto(code,it);$("edit-open").onclick=openEdit;
   if($("item-rep"))$("item-rep").onclick=()=>openReport(it,()=>lookup(code));
+  if($("item-dn"))$("item-dn").onclick=()=>openDestNote(it,()=>lookup(code));
   $("item-del").onclick=async()=>{if(await delItems([it],"ลบจากหน้าข้อมูลบิล")){$("item-view").hidden=true;$("item-view").innerHTML=""}}}
 /* ---------- ลบรายการ ---------- */
 const desc1=x=>`${x.code} · บิล ${x.billNo||"-"} · ${x.store||"ป้ายเปล่า"} (${x.status||ST[0]})`;
@@ -963,7 +979,7 @@ function renderDash(){const from=dashFrom(),t=today(),mk=()=>({wh:0,tr:0,dl:0,wp
   $("d-ptitle").textContent=`บิลที่มีปัญหา${dashBr?" · สาขา"+dashBr:" · ทุกสาขา"} (${list.length})`;$("d-all").hidden=!dashBr;
   $("d-prob").innerHTML=list.slice(0,400).map(({it,b,p,rep})=>`<tr data-code="${esc(it.code)}"><td class="code"><a href="#" class="d-open">${esc(it.code)}</a></td><td>${esc(b)}</td><td>${esc(it.billNo)}</td><td class="ell" title="${esc(it.store)}">${esc(it.store)}</td>
     <td><span class="ipill${p==="ส่งล่าช้า"?" late":""}">${p}</span> <small>${esc(probText(it,p))}</small></td><td>${fmtD(it.planDate)}</td>
-    <td>${rep?`${esc(it.issueCause)}${it.issueNote?` · <span style="color:var(--muted)">${esc(it.issueNote)}</span>`:""}<br><small>โดย ${esc(it.issueBy)}</small>`:`<span style="color:var(--danger)">ยังไม่รายงาน</span>`}</td>
+    <td>${rep?`${esc(it.issueCause)}${it.issueNote?` · <span style="color:var(--muted)">${esc(it.issueNote)}</span>`:""}<br><small>โดย ${esc(it.issueBy)}</small>`:`<span style="color:var(--danger)">ยังไม่รายงาน</span>`}${it.destNote?`<br><small style="color:var(--s2)">ปลายทาง: ${esc(it.destNote)}</small>`:""}</td>
     <td><button type="button" class="btn d-rep" style="padding:4px 10px">${rep?"แก้รายงาน":"รายงาน"}</button></td></tr>`).join("");
   $("d-empty").hidden=list.length>0;$("d-empty").textContent=probs.length?"ไม่มีบิลตามเงื่อนไข":"ไม่มีบิลที่มีปัญหา"}
 $("d-branch").addEventListener("click",e=>{const r=e.target.closest("tr[data-b]");if(!r)return;dashBr=dashBr===r.dataset.b?"":r.dataset.b;renderDash()});
@@ -1123,6 +1139,19 @@ function renderBill(){const {row:r,fus,log}=slaBill,now=Date.now(),L=SLAD?SLAD.l
     const er=!dd.contactType?"เลือกว่าติดต่อใคร":!dd.delayReason?"เลือกสาเหตุล่าช้า":!dd.caseStatus?"เลือกสถานะเคส":dd.caseStatus==="ปิดเคส"&&!dd.note?"ปิดเคสต้องกรอกหมายเหตุ":dd.delayReason==="อื่น ๆ"&&!dd.note?"สาเหตุ \"อื่น ๆ\" ต้องกรอกหมายเหตุ":"";
     if(er){note(m,er,"err");return}
     $("fu-save").disabled=true;try{slaBill=await api("apiFollowUp",r.code,dd);toast("บันทึกการตามแล้ว");renderBill();loadSla()}catch(err){note(m,err.message,"err");$("fu-save").disabled=false}})}
+/* ---------- หมายเหตุจากปลายทาง (สินค้ายังไม่ได้ส่ง) ---------- */
+let dnItem=null,dnDone=null;
+function openDestNote(it,done){dnItem=it;dnDone=done;
+  $("dn-info").textContent=`${it.code} · บิล ${it.billNo||"-"} · ${it.store||"-"} · ${branchOf(it)} · ${it.status}`;
+  $("dn-note").value=it.destNote||"";$("dn-by").value="";$("dn-msg").hidden=true;$("dn-dlg").showModal();$("dn-note").focus()}
+$("dn-x").addEventListener("click",()=>$("dn-dlg").close());
+$("dn-form").addEventListener("submit",async e=>{e.preventDefault();const m=$("dn-msg"),txt=$("dn-note").value.trim(),by=$("dn-by").value.replace(/\s+/g," ").trim();
+  if(!txt){note(m,"กรอกหมายเหตุก่อน","err");$("dn-note").focus();return}
+  if(!by){note(m,"ต้องกรอกชื่อผู้บันทึกก่อนบันทึก","err");$("dn-by").focus();return}
+  $("dn-save").disabled=true;
+  try{const r=await api("apiDestNote",dnItem.code,txt,by);const k=items.findIndex(x=>x.code===r.item.code);if(k>=0)items[k]=r.item;
+    $("dn-dlg").close();toast("บันทึกหมายเหตุปลายทางแล้ว");if(dnDone)dnDone(r.item)}
+  catch(err){note(m,err.message,"err")}finally{$("dn-save").disabled=false}});
 /* ---------- popup alert (in page + device notification) ---------- */
 /* ---------- trip plan / close / cutoff ---------- */
 const CUTOFF_HOUR=15;
