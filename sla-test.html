@@ -340,10 +340,10 @@ body.sla #view-sla.trk:not([hidden]),body.sla .stack>.trk:not([hidden]){display:
       <button class="btn" id="d-refresh" type="button" style="align-self:end">รีเฟรช</button></div>
     </div>
     <div class="kgrid" id="d-cards"></div>
-    <div class="tablebox"><table class="dtable"><thead><tr><th>สาขา</th><th>อยู่คลัง</th><th>ระหว่างขนส่ง</th><th>ส่งสำเร็จ</th><th>ตรงนัด</th><th>ไม่ได้ขึ้นรถ</th><th>ส่งล่าช้า</th><th>ยังไม่รายงาน</th></tr></thead><tbody id="d-branch"></tbody></table></div>
+    <div class="tablebox"><table class="dtable"><thead><tr><th>สาขา</th><th>อยู่คลัง</th><th>ระหว่างขนส่ง</th><th>ส่งสำเร็จ</th><th>ตรงนัด</th><th>ไม่ได้ขึ้นรถ</th><th>ส่งล่าช้า</th><th>ส่งไม่สำเร็จ</th><th>ยังไม่รายงาน</th></tr></thead><tbody id="d-branch"></tbody></table></div>
     <div class="panel stack">
-      <div class="card-head" style="margin:0"><div><h2 id="d-ptitle">บิลที่มีปัญหา</h2><p class="sub" style="margin:0">ไม่ได้ขึ้นรถ = อยู่คลังแต่ตกเที่ยว ค้างเกินกำหนด หรือเลยวันนัด · ส่งล่าช้า = เลยวันนัดแล้วยังไม่ส่งสำเร็จ หรือส่งสำเร็จหลังวันนัด (ในช่วงที่เลือก)</p></div>
-        <div class="row" style="align-items:center"><label style="display:flex;gap:6px;align-items:center;font-size:14px;color:var(--muted)"><input id="d-unrep" type="checkbox" style="width:auto">เฉพาะที่ยังไม่รายงาน</label><button class="btn" id="d-all" type="button" hidden>ดูทุกสาขา</button></div></div>
+      <div class="card-head" style="margin:0"><div><h2 id="d-ptitle">บิลที่มีปัญหา</h2><p class="sub" style="margin:0">ไม่ได้ขึ้นรถ = อยู่คลังแต่ตกเที่ยว ค้างเกินกำหนด หรือเลยวันนัด · ส่งล่าช้า = เลยวันนัดแล้วยังไม่ส่งสำเร็จ หรือส่งสำเร็จหลังวันนัด (ในช่วงที่เลือก) · ส่งไม่สำเร็จ = ขึ้นรถ/ถึงปลายทางแล้ว แต่ปลายทางใส่หมายเหตุว่ายังไม่ได้ส่ง</p></div>
+        <div class="row" style="align-items:center"><label style="display:flex;gap:6px;align-items:center;font-size:14px;color:var(--muted)"><input id="d-unrep" type="checkbox" style="width:auto">เฉพาะที่ยังไม่รายงาน</label><label style="display:flex;gap:6px;align-items:center;font-size:14px;color:var(--muted)"><input id="d-fail" type="checkbox" style="width:auto">เฉพาะส่งไม่สำเร็จ</label><button class="btn" id="d-all" type="button" hidden>ดูทุกสาขา</button></div></div>
       <div class="tablebox"><table><thead><tr><th>รหัส</th><th>สาขา</th><th>เลขบิล</th><th>ร้านค้า</th><th>ปัญหา</th><th>วันนัด</th><th>รายงาน</th><th></th></tr></thead><tbody id="d-prob"></tbody></table>
       <div id="d-empty" class="empty" hidden>ไม่มีบิลที่มีปัญหา</div></div>
     </div>
@@ -901,17 +901,18 @@ async function refreshList(){$("list-empty").hidden=false;$("list-empty").textCo
   catch(err){$("list-empty").textContent="โหลดไม่สำเร็จ: "+err.message}}
 $("refresh-btn").addEventListener("click",refreshList);
 function filtered(){const q=$("q").value.trim().toLowerCase(),qd=$("q-date").value;
-  return items.filter(it=>(filterStatus===-5?isCutoff(it):filterStatus===-4?isMissed(it):filterStatus===-3?isDueSoon(it):filterStatus===-2?isStuck(it):filterStatus===-1?(si(it.status)<4||!!q||!!qd):si(it.status)===filterStatus)&&(!qd||it.shipDate===qd)&&(!q||[it.code,it.customer,it.billNo,it.store,it.trip,it.planTrip,it.branch,it.desc].some(v=>String(v||"").toLowerCase().includes(q))))}
+  return items.filter(it=>(filterStatus===-6?isDestPending(it):filterStatus===-5?isCutoff(it):filterStatus===-4?isMissed(it):filterStatus===-3?isDueSoon(it):filterStatus===-2?isStuck(it):filterStatus===-1?(si(it.status)<4||!!q||!!qd):si(it.status)===filterStatus)&&(!qd||it.shipDate===qd)&&(!q||[it.code,it.customer,it.billNo,it.store,it.trip,it.planTrip,it.branch,it.desc].some(v=>String(v||"").toLowerCase().includes(q))))}
 function renderList(){const c=[0,0,0,0,0];for(const it of items)c[si(it.status)]++;
   const nStuck=items.filter(isStuck).length;
   $("counts").innerHTML=`<button data-s="-1" aria-pressed="${filterStatus===-1}"><small>ทั้งหมด (ยังไม่ส่งสำเร็จ)</small><strong>${items.length-c[4]}</strong></button>`+ST.map((s,k)=>k?`<button data-s="${k}" aria-pressed="${filterStatus===k}"><small>${s}</small><strong>${c[k]}</strong></button>`:"").join("")+
     `<button class="staff" data-s="-2" aria-pressed="${filterStatus===-2}" style="color:var(--danger)"><small>ค้างโกดังเกิน ${STUCK_DAYS} วัน</small><strong>${nStuck}</strong></button>`+
     `<button class="staff" data-s="-3" aria-pressed="${filterStatus===-3}" style="color:var(--s2)"><small>ใกล้วันนัดส่ง</small><strong>${items.filter(isDueSoon).length}</strong></button>`+
     `<button class="staff" data-s="-4" aria-pressed="${filterStatus===-4}" style="color:var(--danger)"><small>ตกเที่ยวรถ</small><strong>${items.filter(isMissed).length}</strong></button>`+
-    `<button class="staff" data-s="-5" aria-pressed="${filterStatus===-5}" style="color:var(--s2)"><small>ตัดรอบ ${CUTOFF_HOUR}:00 ยังไม่ขึ้นรถ</small><strong>${items.filter(isCutoff).length}</strong></button>`;
+    `<button class="staff" data-s="-5" aria-pressed="${filterStatus===-5}" style="color:var(--s2)"><small>ตัดรอบ ${CUTOFF_HOUR}:00 ยังไม่ขึ้นรถ</small><strong>${items.filter(isCutoff).length}</strong></button>`+
+    `<button class="staff" data-s="-6" aria-pressed="${filterStatus===-6}" style="color:var(--danger)"><small>ส่งไม่สำเร็จ (หมายเหตุปลายทาง)</small><strong>${items.filter(isDestPending).length}</strong></button>`;
   showStuck();showDue();
   const rows=filtered();if(filterStatus===-3)rows.sort((a,b)=>daysUntil(a.planDate)-daysUntil(b.planDate));
-  $("tbody").innerHTML=rows.slice(0,500).map(it=>`<tr data-code="${esc(it.code)}"><td class="staff">${si(it.status)<2?`<input type="checkbox" class="t-chk" value="${esc(it.code)}" style="width:auto"${selCodes.has(it.code)?" checked":""}>`:""}</td><td class="code">${esc(it.code)}${isMissed(it)?` <span class="pill" style="color:var(--danger);background:var(--tdanger)">ตกเที่ยว ${esc(it.planTrip)}</span>`:""}</td><td>${pill(it.status)}</td><td class="ell" title="${esc(it.customer)}">${esc(it.customer)}</td><td>${esc(it.billNo)}</td><td class="ell" title="${esc(it.store)}">${esc(it.store)}</td><td>${esc(it.qty)} ${esc(it.unit)}</td><td>${fmtD(it.receivedDate)}${isStuck(it)?` <span class="pill" style="color:var(--danger);background:var(--tdanger)">ค้าง ${daysSince(it.receivedDate||it.createdAt)} วัน</span>`:""}</td><td>${esc(it.trip)}${!it.trip&&it.planTrip?`<span style="color:var(--muted)">แผน ${esc(it.planTrip)}</span>`:""}</td><td>${fmtD(it.shipDate)}</td><td>${fmtD(it.arrivedDate)}</td><td>${fmtD(it.planDate)}${duePill(it)}</td><td>${fmtD(it.deliveredDate)}</td><td class="staff"><button type="button" class="btn t-edit" style="padding:4px 10px">แก้ไข</button></td></tr>`).join("");
+  $("tbody").innerHTML=rows.slice(0,500).map(it=>`<tr data-code="${esc(it.code)}"><td class="staff">${si(it.status)<2?`<input type="checkbox" class="t-chk" value="${esc(it.code)}" style="width:auto"${selCodes.has(it.code)?" checked":""}>`:""}</td><td class="code">${esc(it.code)}${isMissed(it)?` <span class="pill" style="color:var(--danger);background:var(--tdanger)">ตกเที่ยว ${esc(it.planTrip)}</span>`:""}</td><td>${pill(it.status)}${isDestPending(it)?`<br><small class="staff" style="color:var(--danger)" title="${esc(it.destNote)}">ส่งไม่สำเร็จ: ${esc(it.destNote)}</small>`:""}</td><td class="ell" title="${esc(it.customer)}">${esc(it.customer)}</td><td>${esc(it.billNo)}</td><td class="ell" title="${esc(it.store)}">${esc(it.store)}</td><td>${esc(it.qty)} ${esc(it.unit)}</td><td>${fmtD(it.receivedDate)}${isStuck(it)?` <span class="pill" style="color:var(--danger);background:var(--tdanger)">ค้าง ${daysSince(it.receivedDate||it.createdAt)} วัน</span>`:""}</td><td>${esc(it.trip)}${!it.trip&&it.planTrip?`<span style="color:var(--muted)">แผน ${esc(it.planTrip)}</span>`:""}</td><td>${fmtD(it.shipDate)}</td><td>${fmtD(it.arrivedDate)}</td><td>${fmtD(it.planDate)}${duePill(it)}</td><td>${fmtD(it.deliveredDate)}</td><td class="staff"><button type="button" class="btn t-edit" style="padding:4px 10px">แก้ไข</button></td></tr>`).join("");
   $("list-empty").hidden=rows.length>0;$("list-empty").textContent=items.length?"ไม่พบรายการตามเงื่อนไข":"ยังไม่มีสินค้า เริ่มจากแท็บ สร้างป้าย QR";fitList()}
 // ให้กรอบตารางสูงพอดีจอ (นับจากตำแหน่งตารางเมื่อหน้าอยู่บนสุด) จะได้เลื่อนเฉพาะตาราง
 function fitList(){const v=$("view-list"),tb=v&&v.querySelector(".tablebox");if(!tb||v.hidden)return;
@@ -945,6 +946,8 @@ const d10=s=>String(s||"").slice(0,10);
 function branchOf(it){const b=String(it.branch||"");return BRANCHES.find(x=>b.includes(x))||"ไม่ระบุสาขา"}
 function dashFrom(){const p=$("d-period").value,t=today();if(p==="m")return t.slice(0,8)+"01";
   const d=new Date(t+"T00:00:00");d.setDate(d.getDate()-Math.max(0,+p-1));return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+// ส่งไม่สำเร็จ = ขึ้นรถแล้ว/ถึงปลายทาง และปลายทางใส่หมายเหตุว่ายังไม่ได้ส่ง
+function isDestPending(it){const s=si(it.status);return !!String(it.destNote||"").trim()&&(s===2||s===3)}
 // ปัญหาของบิลตอนนี้: "ไม่ได้ขึ้นรถ" / "ส่งล่าช้า" / "" (from = เริ่มช่วงที่นับบิลส่งสำเร็จหลังวันนัด)
 function probOf(it,from){const s=si(it.status),pd=validD(it.planDate)?d10(it.planDate):"",t=today();
   if(s===1&&(isMissed(it)||isStuck(it)||pd&&pd<t))return "ไม่ได้ขึ้นรถ";
@@ -959,34 +962,36 @@ let dashBr="";
 async function refreshDash(){if(items.length)renderDash();else{$("d-empty").hidden=false;$("d-empty").textContent="กำลังโหลด..."}
   try{items=await api("apiList");items.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));renderDash()}
   catch(err){$("d-empty").hidden=false;$("d-empty").textContent="โหลดไม่สำเร็จ: "+err.message}}
-function renderDash(){const from=dashFrom(),t=today(),mk=()=>({wh:0,tr:0,dl:0,wp:0,ot:0,nl:0,lt:0,un:0}),rows={},probs=[];
+function renderDash(){const from=dashFrom(),t=today(),mk=()=>({wh:0,tr:0,dl:0,wp:0,ot:0,nl:0,lt:0,nf:0,un:0}),rows={},probs=[];
   for(const b of BRANCHES)rows[b]=mk();
   for(const it of items){const b=branchOf(it),r=rows[b]=rows[b]||mk(),s=si(it.status),dd=d10(it.deliveredDate);
     if(s===1)r.wh++;else if(s===2||s===3)r.tr++;
     if(s===4&&validD(dd)&&dd>=from&&dd<=t){r.dl++;if(validD(it.planDate)){r.wp++;if(dd<=d10(it.planDate))r.ot++}}
-    const p=probOf(it,from);if(p){p==="ไม่ได้ขึ้นรถ"?r.nl++:r.lt++;const rep=it.issueType===p;if(!rep)r.un++;probs.push({it,b,p,rep})}}
+    const p=probOf(it,from),fl=isDestPending(it);if(fl)r.nf++;
+    if(p){p==="ไม่ได้ขึ้นรถ"?r.nl++:r.lt++;const rep=it.issueType===p;if(!rep)r.un++;probs.push({it,b,p,rep,fl})}
+    else if(fl)probs.push({it,b,p:"ส่งไม่สำเร็จ",rep:true,fl})}
   const tot=mk();for(const r of Object.values(rows))for(const k in tot)tot[k]+=r[k];
   const pct=(a,b)=>b?Math.round(a*1000/b)/10+"%":"-",card=(l,v,s,w)=>`<div class="kcard${w?" warn":""}"><small>${l}</small><strong>${v}</strong><span>${s||""}</span></div>`;
   const per=$("d-period").selectedOptions[0].textContent;
   $("d-cards").innerHTML=card("อยู่คลัง (รอขึ้นรถ)",tot.wh)+card("ระหว่างขนส่ง",tot.tr,"ขึ้นรถแล้ว / ถึงปลายทาง")+card("ส่งสำเร็จ",tot.dl,per)+card("ส่งตรงนัด",pct(tot.ot,tot.wp),`${tot.ot}/${tot.wp} บิลที่มีวันนัด`)+
-    card("ไม่ได้ขึ้นรถ",tot.nl,"",tot.nl>0)+card("ส่งล่าช้า",tot.lt,"",tot.lt>0)+card("ยังไม่รายงานสาเหตุ",tot.un,"ต้องกรอกรายงาน",tot.un>0);
+    card("ไม่ได้ขึ้นรถ",tot.nl,"",tot.nl>0)+card("ส่งล่าช้า",tot.lt,"",tot.lt>0)+card("ส่งไม่สำเร็จ",tot.nf,"มีหมายเหตุจากปลายทาง",tot.nf>0)+card("ยังไม่รายงานสาเหตุ",tot.un,"ต้องกรอกรายงาน",tot.un>0);
   const names=Object.keys(rows).filter(b=>BRANCHES.includes(b)||Object.values(rows[b]).some(Boolean));
-  const tr=(b,r,foot)=>`<tr${foot?"":` data-b="${esc(b)}" aria-pressed="${dashBr===b}"`}><td>${esc(b)}</td><td class="n">${r.wh}</td><td class="n">${r.tr}</td><td class="n">${r.dl}</td><td class="n">${pct(r.ot,r.wp)}</td><td class="n${r.nl?" bad":""}">${r.nl}</td><td class="n${r.lt?" bad":""}">${r.lt}</td><td class="n${r.un?" bad":""}">${r.un}</td></tr>`;
+  const tr=(b,r,foot)=>`<tr${foot?"":` data-b="${esc(b)}" aria-pressed="${dashBr===b}"`}><td>${esc(b)}</td><td class="n">${r.wh}</td><td class="n">${r.tr}</td><td class="n">${r.dl}</td><td class="n">${pct(r.ot,r.wp)}</td><td class="n${r.nl?" bad":""}">${r.nl}</td><td class="n${r.lt?" bad":""}">${r.lt}</td><td class="n${r.nf?" bad":""}">${r.nf}</td><td class="n${r.un?" bad":""}">${r.un}</td></tr>`;
   $("d-branch").innerHTML=names.map(b=>tr(b,rows[b])).join("");
   $("d-branch").parentElement.querySelector("tfoot")?.remove();$("d-branch").insertAdjacentHTML("afterend",`<tfoot>${tr("รวมทุกสาขา",tot,true)}</tfoot>`);
-  const only=$("d-unrep").checked,list=probs.filter(x=>(!dashBr||x.b===dashBr)&&(!only||!x.rep))
+  const only=$("d-unrep").checked,onlyF=$("d-fail").checked,list=probs.filter(x=>(!dashBr||x.b===dashBr)&&(!only||!x.rep)&&(!onlyF||x.fl))
     .sort((a,b)=>(a.rep-b.rep)||a.p.localeCompare(b.p)||d10(a.it.planDate).localeCompare(d10(b.it.planDate)));
   $("d-ptitle").textContent=`บิลที่มีปัญหา${dashBr?" · สาขา"+dashBr:" · ทุกสาขา"} (${list.length})`;$("d-all").hidden=!dashBr;
-  $("d-prob").innerHTML=list.slice(0,400).map(({it,b,p,rep})=>`<tr data-code="${esc(it.code)}"><td class="code"><a href="#" class="d-open">${esc(it.code)}</a></td><td>${esc(b)}</td><td>${esc(it.billNo)}</td><td class="ell" title="${esc(it.store)}">${esc(it.store)}</td>
-    <td><span class="ipill${p==="ส่งล่าช้า"?" late":""}">${p}</span> <small>${esc(probText(it,p))}</small></td><td>${fmtD(it.planDate)}</td>
-    <td>${rep?`${esc(it.issueCause)}${it.issueNote?` · <span style="color:var(--muted)">${esc(it.issueNote)}</span>`:""}<br><small>โดย ${esc(it.issueBy)}</small>`:`<span style="color:var(--danger)">ยังไม่รายงาน</span>`}${it.destNote?`<br><small style="color:var(--s2)">ปลายทาง: ${esc(it.destNote)}</small>`:""}</td>
-    <td><button type="button" class="btn d-rep" style="padding:4px 10px">${rep?"แก้รายงาน":"รายงาน"}</button></td></tr>`).join("");
+  $("d-prob").innerHTML=list.slice(0,400).map(({it,b,p,rep,fl})=>`<tr data-code="${esc(it.code)}"><td class="code"><a href="#" class="d-open">${esc(it.code)}</a></td><td>${esc(b)}</td><td>${esc(it.billNo)}</td><td class="ell" title="${esc(it.store)}">${esc(it.store)}</td>
+    <td><span class="ipill${p==="ส่งล่าช้า"?" late":""}">${p}</span>${fl&&p!=="ส่งไม่สำเร็จ"?` <span class="ipill">ส่งไม่สำเร็จ</span>`:""} <small>${esc(p==="ส่งไม่สำเร็จ"?it.status:probText(it,p))}</small></td><td>${fmtD(it.planDate)}</td>
+    <td>${p==="ส่งไม่สำเร็จ"?`<span style="color:var(--s2)">ปลายทาง: ${esc(it.destNote)}</span><br><small>โดย ${esc(it.destNoteBy)} · ${esc(it.destNoteAt)}</small>`:rep?`${esc(it.issueCause)}${it.issueNote?` · <span style="color:var(--muted)">${esc(it.issueNote)}</span>`:""}<br><small>โดย ${esc(it.issueBy)}</small>`:`<span style="color:var(--danger)">ยังไม่รายงาน</span>`}${it.destNote&&p!=="ส่งไม่สำเร็จ"?`<br><small style="color:var(--s2)">ปลายทาง: ${esc(it.destNote)}</small>`:""}</td>
+    <td>${p==="ส่งไม่สำเร็จ"?`<button type="button" class="btn d-dn" style="padding:4px 10px">แก้หมายเหตุ</button>`:`<button type="button" class="btn d-rep" style="padding:4px 10px">${rep?"แก้รายงาน":"รายงาน"}</button>`}</td></tr>`).join("");
   $("d-empty").hidden=list.length>0;$("d-empty").textContent=probs.length?"ไม่มีบิลตามเงื่อนไข":"ไม่มีบิลที่มีปัญหา"}
 $("d-branch").addEventListener("click",e=>{const r=e.target.closest("tr[data-b]");if(!r)return;dashBr=dashBr===r.dataset.b?"":r.dataset.b;renderDash()});
 $("d-all").addEventListener("click",()=>{dashBr="";renderDash()});
-$("d-unrep").addEventListener("change",renderDash);$("d-period").addEventListener("change",renderDash);$("d-refresh").addEventListener("click",refreshDash);
+$("d-unrep").addEventListener("change",renderDash);$("d-fail").addEventListener("change",renderDash);$("d-period").addEventListener("change",renderDash);$("d-refresh").addEventListener("click",refreshDash);
 $("d-prob").addEventListener("click",e=>{const tr=e.target.closest("tr[data-code]");if(!tr)return;const it=items.find(x=>x.code===tr.dataset.code);if(!it)return;
-  if(e.target.closest(".d-rep"))openReport(it,renderDash);else if(e.target.closest(".d-open")){e.preventDefault();showTab("scan");setMode("view");lookup(it.code)}});
+  if(e.target.closest(".d-rep"))openReport(it,renderDash);else if(e.target.closest(".d-dn"))openDestNote(it,renderDash);else if(e.target.closest(".d-open")){e.preventDefault();showTab("scan");setMode("view");lookup(it.code)}});
 let repItem=null,repDone=null;
 function fillCauses(sel){$("rep-cause").innerHTML=`<option value="">-- เลือกสาเหตุ --</option>`+CAUSES[$("rep-type").value].map(x=>`<option>${esc(x)}</option>`).join("");$("rep-cause").value=sel||""}
 function openReport(it,done){repItem=it;repDone=done;
